@@ -1,0 +1,83 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Рисование в реальном времени</title>
+</head>
+<body>
+    <canvas id="drawingCanvas" width="500" height="500" style="border:1px solid #000000;"></canvas>
+    <button onclick="clearBoard()">Очистити доску</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/3.1.9/signalr.min.js"></script>
+    <script>
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("https://localhost:7273/drawHub")
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+
+        let isConnected = false;
+
+        connection.start()
+            .then(() => {
+                isConnected = true;
+                console.log("Connected to the server");
+            })
+            .catch(err => {
+                console.error(err.toString());
+                isConnected = false;
+            });
+        connection.on("ClearBoard", () => {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+        });
+
+        const canvas = document.getElementById("drawingCanvas");
+        const context = canvas.getContext("2d");
+
+        canvas.addEventListener("mousemove", draw);
+        function draw(event) {
+            if (event.buttons !== 1) return;
+            const x = event.clientX - canvas.offsetLeft;
+            const y = event.clientY - canvas.offsetTop;
+            const data = { x, y };
+            drawOnCanvas(data);
+            sendDrawing(data);
+        }
+
+        function sendDrawing(data) {
+            if (!isConnected) {
+                console.error("Not connected to the server");
+                return;
+            }
+            connection.invoke("SendDrawing", data)
+                .catch(err => console.error(err.toString()));
+        }
+
+        function drawOnCanvas(data) {
+            //context.fillStyle = "#000000";
+            //context.beginPath();
+            //context.arc(data.x, data.y, 5, 0, Math.PI * 2);
+            //context.fill();
+            //context.closePath();
+            context.fillStyle = "#000000";
+            const size = 10; 
+            context.fillRect(data.x - size / 2, data.y - size / 2, size, size);
+        }
+
+        function clearBoard() {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (isConnected) {
+                connection.invoke("ClearBoard")
+                    .catch(err => console.error(err.toString()));
+            }
+        }
+
+
+        connection.on("ReceiveDrawing", (data) => {
+            drawOnCanvas(data);
+        });
+    </script>
+</body>
+</html>
